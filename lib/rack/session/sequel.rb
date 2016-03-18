@@ -61,6 +61,11 @@ module Rack
     private
       def setup_database
         (@default_options[:db] || ::Sequel.connect(@default_options[:db_uri])).tap do |db|
+          puts "*" * 70
+          puts db
+          puts @default_options[:table_name]
+          puts db.table_exists?(@default_options[:table_name])
+          puts "*" * 70
           db.create_table @default_options[:table_name] do
             #primary_key :id
             String :sid, :unique => true,  :null => false, :primary_key => true
