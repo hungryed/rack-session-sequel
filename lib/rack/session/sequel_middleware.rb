@@ -3,7 +3,7 @@ require 'sequel'
 
 module Rack
   module Session
-    class Sequel < Abstract::ID
+    class SequelMiddleware < Abstract::ID
 
       attr_reader :mutex, :pool
 
@@ -14,7 +14,6 @@ module Rack
         options = {:db => options } if options.kind_of? ::Sequel::Database
         options = {:db_uri => options } if options.is_a? String
         super
-        @pool = setup_database[@default_options[:table_name]]
         @mutex = Mutex.new
       end
 
@@ -58,14 +57,19 @@ module Rack
         @mutex.unlock if @mutex.locked?
       end
 
+      def call(env)
+        pool
+        super(env)
+      end
+
+      def pool
+        @pool ||= setup_database[@default_options[:table_name]]
+      end
+
     private
+
       def setup_database
         (@default_options[:db] || ::Sequel.connect(@default_options[:db_uri])).tap do |db|
-          puts "*" * 70
-          puts db
-          puts @default_options[:table_name]
-          puts db.table_exists?(@default_options[:table_name])
-          puts "*" * 70
           db.create_table @default_options[:table_name] do
             #primary_key :id
             String :sid, :unique => true,  :null => false, :primary_key => true
@@ -80,7 +84,7 @@ module Rack
         if _exists?(sid)
           _record(sid).update :session  => [Marshal.dump(session)].pack('m*'), :updated_at => Time.now.utc
         else
-          @pool.insert :sid => sid, :session => [Marshal.dump(session)].pack('m*'), :created_at => Time.now.utc
+          pool.insert :sid => sid, :session => [Marshal.dump(session)].pack('m*'), :created_at => Time.now.utc
         end
       end
 
@@ -101,7 +105,7 @@ module Rack
       end
 
       def _record(sid)
-        @pool.filter('sid = ?', sid)
+        pool.filter('sid = ?', sid)
       end
     end
   end
