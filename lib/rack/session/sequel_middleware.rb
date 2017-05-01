@@ -4,16 +4,18 @@ require 'sequel'
 module Rack
   module Session
     class SequelMiddleware < Abstract::ID
-
       attr_reader :mutex, :pool
 
-      DEFAULT_OPTIONS = Abstract::ID::DEFAULT_OPTIONS.merge \
-        :table_name => :sessions, :db_uri => 'sqlite:/'
+      DEFAULT_OPTIONS = Abstract::ID::DEFAULT_OPTIONS.merge(
+        table_name: :sessions,
+        db_uri:     'sqlite:/'
+      )
 
       def initialize(app, options={})
-        options = {:db => options } if options.kind_of? ::Sequel::Database
-        options = {:db_uri => options } if options.is_a? String
+        options = { db: options } if options.kind_of? ::Sequel::Database
+        options = { db_uri: options } if options.is_a? String
         super
+        @pool = setup_database[@default_options[:table_name]]
         @mutex = Mutex.new
       end
 
@@ -57,24 +59,15 @@ module Rack
         @mutex.unlock if @mutex.locked?
       end
 
-      def call(env)
-        pool
-        super(env)
-      end
-
-      def pool
-        @pool ||= setup_database[@default_options[:table_name]]
-      end
-
     private
 
       def setup_database
         (@default_options[:db] || ::Sequel.connect(@default_options[:db_uri])).tap do |db|
           db.create_table @default_options[:table_name] do
-            #primary_key :id
-            String :sid, :unique => true,  :null => false, :primary_key => true
-            text :session, :null => false
-            DateTime :created_at, :null => false
+            # Removed unique constraint, see https://github.com/migrs/rack-session-sequel/pull/2
+            String :sid, null: false, primary_key: true
+            text :session, null: false
+            DateTime :created_at, null: false
             DateTime :updated_at
           end unless db.table_exists?(@default_options[:table_name])
         end
@@ -82,9 +75,9 @@ module Rack
 
       def _put(sid, session)
         if _exists?(sid)
-          _record(sid).update :session  => [Marshal.dump(session)].pack('m*'), :updated_at => Time.now.utc
+          _record(sid).update session: [Marshal.dump(session)].pack('m*'), updated_at: Time.now.utc
         else
-          pool.insert :sid => sid, :session => [Marshal.dump(session)].pack('m*'), :created_at => Time.now.utc
+          pool.insert sid: sid, session: [Marshal.dump(session)].pack('m*'), created_at: Time.now.utc
         end
       end
 
@@ -110,4 +103,3 @@ module Rack
     end
   end
 end
-
