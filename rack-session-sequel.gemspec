@@ -22,5 +22,5 @@ Gem::Specification.new do |s|
   s.add_development_dependency "bacon"
   s.add_development_dependency "sqlite3"
   s.add_runtime_dependency "rack"
-  s.add_runtime_dependency "sequel"
+  s.add_runtime_dependency "sequel", "~> 4.43.0"
 end
